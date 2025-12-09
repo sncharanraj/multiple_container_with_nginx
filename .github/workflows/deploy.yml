@@ -17,7 +17,7 @@ jobs:
       with:
         registry: ghcr.io
         username: sncharanraj
-        password: ${{ secrets.CAR_PAT }}
+        password: ${{ secrets.GHCR_PAT }}
 
     - name: Build Service A Image
       run: |
@@ -45,9 +45,11 @@ jobs:
         key: ${{ secrets.VM_SSH_KEY }}
         script: |
           docker login ghcr.io -u sncharanraj -p ${{ secrets.GHCR_PAT }}
+
+          mkdir -p ~/multi-service-devops
+          cd ~/multi-service-devops
+
           docker pull ghcr.io/sncharanraj/multi-service-service-a:latest
           docker pull ghcr.io/sncharanraj/multi-service-service-b:latest
           docker pull ghcr.io/sncharanraj/multi-service-nginx:latest
-
-          cd multi-service-devops || mkdir multi-service-devops
 
