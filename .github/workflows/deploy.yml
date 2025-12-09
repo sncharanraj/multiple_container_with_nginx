@@ -1,43 +1,4 @@
-name: Multi-Service CI/CD Pipeline
-
-on:
-  push:
-    branches: ["main"]
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Log in to GHCR
-      uses: docker/login-action@v2
-      with:
-        registry: ghcr.io
-        username: sncharanraj
-        password: ${{ secrets.GHCR_PAT }}
-
-    - name: Build Service A Image
-      run: |
-        docker build -t ghcr.io/sncharanraj/multi-service-service-a:latest ./service-a
-
-    - name: Build Service B Image
-      run: |
-        docker build -t ghcr.io/sncharanraj/multi-service-service-b:latest ./service-b
-
-    - name: Build Nginx Image
-      run: |
-        docker build -t ghcr.io/sncharanraj/multi-service-nginx:latest ./nginx
-
-    - name: Push Images to GHCR
-      run: |
-        docker push ghcr.io/sncharanraj/multi-service-service-a:latest
-        docker push ghcr.io/sncharanraj/multi-service-service-b:latest
-        docker push ghcr.io/sncharanraj/multi-service-nginx:latest
-
-    - name: Deploy to Azure VM
+   - name: Deploy to Azure VM
       uses: appleboy/ssh-action@v0.1.7
       with:
         host: ${{ secrets.VM_HOST }}
@@ -53,3 +14,34 @@ jobs:
           docker pull ghcr.io/sncharanraj/multi-service-service-b:latest
           docker pull ghcr.io/sncharanraj/multi-service-nginx:latest
 
+          # Write docker-compose.yml
+          cat <<EOF > docker-compose.yml
+          version: "3.9"
+          services:
+            service-a:
+              image: ghcr.io/sncharanraj/multi-service-service-a:latest
+              container_name: service_a
+              ports:
+                - "8001:8001"
+
+            service-b:
+              image: ghcr.io/sncharanraj/multi-service-service-b:latest
+              container_name: service_b
+              ports:
+                - "5000:5000"
+
+            nginx:
+              image: ghcr.io/sncharanraj/multi-service-nginx:latest
+              container_name: nginx_proxy
+              ports:
+                - "9000:80"
+              depends_on:
+                - service-a
+                - service-b
+          EOF
+
+          # Stop old services (if exist)
+          docker compose down || true
+
+          # Start new services
+          docker compose up -d
