@@ -1,47 +1,83 @@
-   - name: Deploy to Azure VM
-      uses: appleboy/ssh-action@v0.1.7
-      with:
-        host: ${{ secrets.VM_HOST }}
-        username: ${{ secrets.VM_USER }}
-        key: ${{ secrets.VM_SSH_KEY }}
-        script: |
-          docker login ghcr.io -u sncharanraj -p ${{ secrets.GHCR_PAT }}
+name: Multi-Service CI/CD Pipeline
 
-          mkdir -p ~/multi-service-devops
-          cd ~/multi-service-devops
+on:
+  push:
+    branches: ["main"]
 
-          docker pull ghcr.io/sncharanraj/multi-service-service-a:latest
-          docker pull ghcr.io/sncharanraj/multi-service-service-b:latest
-          docker pull ghcr.io/sncharanraj/multi-service-nginx:latest
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-          # Write docker-compose.yml
-          cat <<EOF > docker-compose.yml
-          version: "3.9"
-          services:
-            service-a:
-              image: ghcr.io/sncharanraj/multi-service-service-a:latest
-              container_name: service_a
-              ports:
-                - "8001:8001"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-            service-b:
-              image: ghcr.io/sncharanraj/multi-service-service-b:latest
-              container_name: service_b
-              ports:
-                - "5000:5000"
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: sncharanraj
+          password: ${{ secrets.GHCR_PAT }}
 
-            nginx:
-              image: ghcr.io/sncharanraj/multi-service-nginx:latest
-              container_name: nginx_proxy
-              ports:
-                - "9000:80"
-              depends_on:
-                - service-a
-                - service-b
-          EOF
+      - name: Build Service A Image
+        run: |
+          docker build -t ghcr.io/sncharanraj/multi-service-service-a:latest ./service-a
 
-          # Stop old services (if exist)
-          docker compose down || true
+      - name: Build Service B Image
+        run: |
+          docker build -t ghcr.io/sncharanraj/multi-service-service-b:latest ./service-b
 
-          # Start new services
-          docker compose up -d
+      - name: Build Nginx Image
+        run: |
+          docker build -t ghcr.io/sncharanraj/multi-service-nginx:latest ./nginx
+
+      - name: Push Images to GHCR
+        run: |
+          docker push ghcr.io/sncharanraj/multi-service-service-a:latest
+          docker push ghcr.io/sncharanraj/multi-service-service-b:latest
+          docker push ghcr.io/sncharanraj/multi-service-nginx:latest
+
+      - name: Deploy to Azure VM
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            docker login ghcr.io -u sncharanraj -p ${{ secrets.GHCR_PAT }}
+
+            mkdir -p ~/multi-service-devops
+            cd ~/multi-service-devops
+
+            docker pull ghcr.io/sncharanraj/multi-service-service-a:latest
+            docker pull ghcr.io/sncharanraj/multi-service-service-b:latest
+            docker pull ghcr.io/sncharanraj/multi-service-nginx:latest
+
+            # Write docker-compose.yml
+            cat <<EOF > docker-compose.yml
+            version: "3.9"
+            services:
+              service-a:
+                image: ghcr.io/sncharanraj/multi-service-service-a:latest
+                container_name: service_a
+                ports:
+                  - "8001:8001"
+
+              service-b:
+                image: ghcr.io/sncharanraj/multi-service-service-b:latest
+                container_name: service_b
+                ports:
+                  - "5000:5000"
+
+              nginx:
+                image: ghcr.io/sncharanraj/multi-service-nginx:latest
+                container_name: nginx_proxy
+                ports:
+                  - "9000:80"
+                depends_on:
+                  - service-a
+                  - service-b
+            EOF
+
+            docker compose down || true
+            docker compose up -d
