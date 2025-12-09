@@ -1,0 +1,24 @@
+^version: "3.9"
+
+services:
+  service-a:
+    image: ghcr.io/sncharanraj/multi-service-service-a:latest
+    container_name: service_a
+    ports:
+      - "8001:8001"
+
+  service-b:
+    image: ghcr.io/sncharanraj/multi-service-service-b:latest
+    container_name: service_b
+    ports:
+      - "5000:5000"
+
+  nginx:
+    image: ghcr.io/sncharanraj/multi-service-nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "9000:80"
+    depends_on:
+      - service-a
+      - service-b
+
